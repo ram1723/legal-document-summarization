@@ -1,121 +1,153 @@
-# legal-document-summarization
-# **Legal Document Abstractive Summarization and Case Retrieval**
+# 🏛️ NLP Legal Document Abstractive Summarization using GNN + Transformer Decoder, Finetuned models of BART, Legal Pegasus and Legal case retrieval with EUGAT
 
-### **Project Overview**
-This project focuses on **abstractive summarization** of legal documents using multiple models such as **BART**, **Legal Pegasus**, and **Graph Neural Networks (GNN)**. Additionally, it includes a **legal case retrieval** feature powered by the **EUGAT (Edge-Enhanced Graph Attention Network)** model, which retrieves similar legal cases based on the input document or specific legal queries. 
+## 📌 Project Overview
+This project is an **implementation of abstractive summarization for legal case documents**, inspired by the paper:
 
-The tool is designed to help lawyers and legal professionals quickly summarize legal texts and retrieve relevant cases for further legal research or analysis.
+> **Integrating Topic-Aware Heterogeneous Graph Neural Network With Transformer Model for Medical Scientific Document Abstractive Summarization**
+
+While the paper focuses on **medical datasets**, we **adapted the architecture to legal datasets**.  
+Our system replaces the **BART decoder** with a **custom Transformer-based multi-head attention decoder** and integrates it with a **Graph Neural Network (GNN) encoder**.  
+
+Also BART, Pegasus models were finetuned and trained with our dataset, which files can be found in the repo as well.
+Additionally, it includes a legal case retrieval feature powered by the EUGAT (Edge-Enhanced Graph Attention Network) model, which retrieves similar legal cases based on the input document or specific legal queries.This can be found in Casegnn.ipynb file.
+---
+
+## ⚙️ Architecture
+
+The architecture can be divided into **two main components**:
+
+### 1. **Graph Neural Network (GNN) Encoder**
+- We implemented a **Graph Attention Network (GAT)**-based encoder.  
+- Legal case documents are modeled as a **graph**:
+  - **Nodes** → legal entities (facts, arguments, statutes, judgments).  
+  - **Edges** → relationships such as *citations, references, logical dependencies*.  
+- The GAT uses **multi-head self-attention** to refine node embeddings and produce **context-aware graph embeddings**.
+- **Why GNN for legal text?**
+  - Legal cases are **not just linear text** — they are highly **structured and interdependent**.  
+  - GNN captures **citation networks, precedent relations, and logical structures** far better than sequential models.  
+  - It allows the summarizer to **reason over case relationships** instead of treating each sentence in isolation.
 
 ---
 
-### **Table of Contents**
-1. [Features](#features)
-2. [Installation](#installation)
-3. [Usage](#usage)
-4. [Legal Document Summarization](#legal-document-summarization)
-   - [BART Model](#bart-model)
-   - [Legal Pegasus Model](#legal-pegasus-model)
-   - [GNN-Based Summarization](#gnn-based-summarization)
-5. [Legal Case Retrieval (EUGAT)](#legal-case-retrieval-eugat)
-6. [Dataset Preparation](#dataset-preparation)
-7. [Future Improvements](#future-improvements)
-8. [Contributors](#contributors)
-9. [License](#license)
+### 2. **Transformer Decoder (Custom Implementation in TensorFlow)**
+- Instead of using BART, we built a **Transformer decoder** from scratch in TensorFlow/Keras:
+  - **Multi-head self-attention** → learns dependencies between generated summary tokens.
+  - **Cross-attention with GNN embeddings** → conditions summary generation on the encoded graph representation of the legal case.
+  - **Feed-forward network + residual connections + layer normalization** → ensures stable training and expressive representations.
+- Supports **greedy decoding** (fast inference) and **beam search with length normalization** (better quality, prevents short summaries).
 
 ---
 
-### **Features**
-- **Abstractive Summarization**: Automatically generates concise summaries of long legal documents using:
-  - **BART**
-  - **Legal Pegasus**
-  - **GNN-based models**
-- **Legal Case Retrieval**: Retrieves similar legal cases based on the document or query input using **EUGAT (Edge-Enhanced GAT)**.
-- **Multi-Model Support**: Compares different model performances for summarization, allowing users to choose the best fit for their needs.
-- **Scalable Solution**: The solution can handle large legal documents and vast databases of cases efficiently.
+## 🧠 What is a Graph Neural Network (GNN)?
+
+A **Graph Neural Network** is a deep learning architecture designed to work on **graph-structured data**.
+
+- **Graph structure**:  
+  A graph is composed of **nodes (vertices)** and **edges (connections)**.  
+  Example in legal context:  
+  - Nodes = facts, statutes, arguments.  
+  - Edges = "cites", "supports", "contradicts".
+
+- **How it works**:  
+  1. Each node starts with an embedding (e.g., word/sentence embedding).  
+  2. Information flows between nodes through **message passing**.  
+  3. Attention (in GAT) ensures **important neighbors get higher weights**.  
+  4. After multiple layers, each node representation encodes both **local and global context**.  
+
+- **Why for legal texts?**
+  - Captures **hierarchical dependencies** (facts → arguments → judgment).  
+  - Handles **citations and precedents** naturally.  
+  - More **efficient** than plain transformers for extremely long documents, since it reduces redundancy by reasoning over structure.
+
+---
+## 🖼️  GNN Workflow
+graph TD
+    A[Input Nodes: Facts, Arguments, Statutes] --> B[Message Passing]
+    B --> C[Graph Attention (multi-head)]
+    C --> D[Updated Node Embeddings]
+    D --> E[Graph Embeddings for Document]
+
+
+Nodes → represent legal units (facts, judgments, statutes).
+
+Edges → capture relationships (citations, supports, contradicts).
+
+GAT → applies multi-head attention to weigh node importance.
+
+**Why in Legal Documents?**
+
+Captures precedent structure (cases citing each other).
+
+Handles long dependencies better than linear models.
+
+More efficient for very long case documents.
+
+## 🖼️  Decoder Workflow
+flowchart TD
+    A[Input Summary Tokens] --> B[Self-Attention Layer]
+    B --> C[Cross-Attention with GNN Embeddings]
+    C --> D[Feed Forward Network + Residuals + LayerNorm]
+    D --> E[Output Vocabulary Distribution]
+
+
+Self-Attention → captures dependencies in generated summary.
+
+Cross-Attention → attends to GNN graph embeddings.
+
+Feed-Forward + Residuals → improves expressiveness & stability.
+---
+
+## 🏗️ Our Implementation Flow
+
+1. **Input Processing**  
+   - Legal case document is parsed and structured into **nodes** (facts, judgments, statutes, etc.) and **edges** (citations, references).  
+
+2. **Graph Encoding (GNN/GAT)**  
+   - GAT aggregates information from connected nodes.  
+   - Produces **graph embeddings** `[batch, seq_len, hidden_dim]`.
+
+3. **Decoding (Transformer Decoder)**  
+   - Summary generation starts with a `<s>` token.  
+   - Uses **self-attention** to learn dependencies among generated tokens.  
+   - Uses **cross-attention** to attend to **graph embeddings from GNN**.  
+   - Output projected onto vocabulary space → generates next token.
+
+4. **Inference Options**
+   - **Beam Search with Length Normalization** → higher-quality summaries, avoids short biased outputs.
 
 ---
 
-### **Installation**
+## 🚀 Why is this Efficient for Legal Summarization?
 
-#### **Clone the Repository**
-```bash
-git clone https://github.com/yourusername/legal-document-summarization.git
-cd legal-document-summarization
+- **Legal documents are long & structured** → GNN encodes dependencies more efficiently than flat transformers.  
+- **Attention over graph nodes** → allows the decoder to focus on **key precedents and arguments** instead of redundant text.  
+- **Beam search decoding** → ensures **coherent, complete summaries** instead of truncated outputs.  
+- **Scalability** → The combination handles **thousands of case documents** more effectively than pure sequence models like BART or GPT-based summarizers.
 
-Environment Setup
-Create and activate a virtual environment for the project:
+---
 
-python3 -m venv venv
-source venv/bin/activate    # For Linux/Mac
-venv\Scripts\activate       # For Windows
-Install Dependencies
-pip install -r requirements.txt
-Set Up API Keys
-Ensure you have the necessary API keys for any external services (e.g., document storage APIs or vector databases) and store them in an .env file:
+## 🧩 Features Implemented
 
-OPENAI_API_KEY=<your_openai_api_key>
-Usage
-Prepare Legal Documents:
-Add your legal case documents into the documents/ folder for summarization or retrieval.
+✔️ **Graph Encoder**: GAT-based representation of legal documents.  
+✔️ **Transformer Decoder**: Implemented in TensorFlow with multi-head attention.  
+✔️ **Training Loop**: Teacher forcing with cross-entropy loss.  
+✔️ **Inference Methods**:  
+- Beam search with length normalization  
 
-Summarizing Legal Documents:
-Use the script below to run the summarization using different models like BART, Legal Pegasus, or GNN:
+---
 
-python summarize.py --model bart --input ./documents/case1.pdf
-You can switch the model by passing the --model argument with values bart, legal-pegasus, or gnn.
+## 📜 Example Usage
 
-Retrieving Similar Cases:
-Use the following command to retrieve similar legal cases based on the input document or text query:
+```python
+from transformer_decoder_tf import TransformerDecoder, train_decoder, generate_summary_greedy, generate_summary_beam
 
-python retrieve_cases.py --query "contract law in India"
-Legal Document Summarization
-The project supports multiple models for abstractive summarization of legal documents. Here’s how each model works:
+# Initialize decoder
+decoder = TransformerDecoder(vocab_size=len(tokenizer), d_model=768, num_heads=8, num_layers=6)
 
-BART Model
-The BART model is a transformer-based sequence-to-sequence model pre-trained for abstractive summarization tasks. It works by encoding the document and decoding it into a concise, human-readable summary.
+# Train model
+train_decoder(decoder, gnn_model, dataset, tokenizer, epochs=10, lr=1e-4, pad_token_id=tokenizer.pad_token_id)
 
-To summarize a document using BART:
+# Inference
+doc_tensor = some_preprocessed_doc
 
-python summarize.py --model bart --input ./documents/case1.pdf
-Legal Pegasus Model
-Legal Pegasus is a variant of the Pegasus model, pre-trained on legal text, to enhance its performance on legal document summarization. It produces more focused summaries tailored to the legal domain.
-
-To summarize using Legal Pegasus:
-
-python summarize.py --model legal-pegasus --input ./documents/case1.pdf
-GNN-Based Summarization
-The Graph Neural Network (GNN) approach considers the structure of the legal documents, leveraging graph-based representations for more context-aware summarization. This model captures relationships between sections of the document, such as citations or legal references.
-
-To summarize using a GNN model:
-
-python summarize.py --model gnn --input ./documents/case1.pdf
-Legal Case Retrieval (EUGAT)
-The EUGAT (Edge-Enhanced Graph Attention Network) model is employed for retrieving similar legal cases from a vector database based on the input document or query. It models legal cases as nodes and their relationships (e.g., citations or precedents) as edges.
-
-Query-Based Retrieval: Input any text query related to legal cases, and the model retrieves similar cases.
-Document-Based Retrieval: Upload a legal document (PDF or text), and the model will return similar cases from the database.
-Example Usage:
-Retrieve Based on Query:
-
-python retrieve_cases.py --query "What are the landmark cases related to intellectual property law?"
-Retrieve Based on Document:
-
-python retrieve_cases.py --input ./documents/case2.pdf
-The EUGAT model enhances retrieval precision by considering the graph structure of legal documents, enabling more accurate case recommendations.
-
-Dataset Preparation
-Legal Document Preparation:
-Ensure your legal documents are in PDF or plain text format and placed in the documents/ folder.
-
-Embedding Legal Cases:
-Embed the documents into a vector database for retrieval using:
-
-python embed_documents.py --data_path ./documents
-The vector database will store document embeddings for fast similarity-based retrieval.
-
-Future Improvements
-Hybrid Summarization Models: Incorporate hybrid techniques combining extractive and abstractive summarization for improved accuracy.
-Citation-Based Retrieval: Enhance retrieval accuracy by factoring in citation graphs to identify cases with stronger precedential value.
-Multi-Language Support: Extend the models to handle legal documents in multiple languages.
-Improved GNN Training: Fine-tune the GNN model on more legal datasets to improve summarization performance and case retrieval precision.
-
+print("Beam:", generate_summary_beam(decoder, gnn_model, tokenizer, doc_tensor, max_len=150, beam_size=5, alpha=0.7))
